@@ -19,16 +19,22 @@ program
     if (!isValidGitHubRepoUrl(repoUrl)) {
       console.error(`Invalid GitHub repository URL: ${repoUrl}`);
       console.error('Expected format: https://github.com/<owner>/<repo>');
+      process.exitCode = 2;
       return;
     }
 
     console.log(`Reviewing ${repoUrl}...`);
-    const result = await runSandboxLifecycle(repoUrl);
 
-    console.log(`Sandbox: ${result.sandboxName}`);
-    console.log(`Clone exit code: ${result.cloneExitCode}`);
-    console.log(`Files:\n${result.files}`);
-    console.log(`README preview:\n${result.readmePreview}`);
+    try {
+      const result = await runSandboxLifecycle(repoUrl);
+      console.log(`Sandbox: ${result.sandboxName}`);
+      console.log(`Clone exit code: ${result.cloneExitCode}`);
+      console.log(`Files:\n${result.files}`);
+      console.log(`README preview:\n${result.readmePreview}`);
+    } catch (error) {
+      console.error('Review failed:', error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    }
   });
 
 await program.parseAsync();
