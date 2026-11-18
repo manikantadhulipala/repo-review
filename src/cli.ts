@@ -32,7 +32,13 @@ program
       console.log(`Files:\n${result.files}`);
       console.log(`README preview:\n${result.readmePreview}`);
     } catch (error) {
-      console.error('Review failed:', error instanceof Error ? error.message : error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('could not read Username')) {
+        // GitHub asks for credentials when a repo is missing or private.
+        console.error('Review failed: repository not found, or it is private (public repos only).');
+      } else {
+        console.error('Review failed:', message);
+      }
       process.exitCode = 1;
     }
   });
