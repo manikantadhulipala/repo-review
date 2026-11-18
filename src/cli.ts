@@ -1,5 +1,9 @@
 import { Command } from 'commander';
 
+function isValidGitHubRepoUrl(input: string): boolean {
+  return /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(input);
+}
+
 const program = new Command();
 
 program
@@ -11,6 +15,12 @@ program
   .command('review <repoUrl>')
   .description('Run a Sandbox review against a GitHub repository URL')
   .action(async (repoUrl: string) => {
+    if (!isValidGitHubRepoUrl(repoUrl)) {
+      console.error(`Invalid GitHub repository URL: ${repoUrl}`);
+      console.error('Expected format: https://github.com/<owner>/<repo>');
+      return;
+    }
+
     console.log(`Would review: ${repoUrl}`);
   });
 
