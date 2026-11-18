@@ -1,5 +1,7 @@
 import { Sandbox } from '@vercel/sandbox';
 
+const REPO_URL = 'https://github.com/vercel/examples';
+
 async function main() {
   const sandbox = await Sandbox.create({
     name: `repo-review-${Date.now()}`,
@@ -8,12 +10,16 @@ async function main() {
   });
   console.log(`Sandbox created: ${sandbox.name}`);
 
-  const result = await sandbox.runCommand('echo', ['hello from inside the sandbox']);
-  console.log(`Output: ${(await result.stdout()).trim()}`);
-  console.log(`Exit code: ${result.exitCode}`);
+  const clone = await sandbox.runCommand('git', ['clone', '--depth', '1', REPO_URL, 'repo']);
+  console.log(`Clone exit code: ${clone.exitCode}`);
+
+  if (clone.exitCode !== 0) {
+    console.error(`Clone failed: ${await clone.stderr()}`);
+  } else {
+    console.log(`Cloned ${REPO_URL} into repo`);
+  }
 
   await sandbox.stop();
-  console.log('Sandbox stopped.');
 }
 
 main();
