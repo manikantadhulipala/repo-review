@@ -38,10 +38,3 @@ export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleRes
     await sandbox.stop();
   }
 }
-
-async function main() {
-  const result = await runSandboxLifecycle('https://github.com/vercel/examples');
-  console.log(result);
-}
-
-main();
