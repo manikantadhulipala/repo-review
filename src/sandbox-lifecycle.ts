@@ -11,13 +11,26 @@ async function main() {
   console.log(`Sandbox created: ${sandbox.name}`);
 
   const clone = await sandbox.runCommand('git', ['clone', '--depth', '1', REPO_URL, 'repo']);
-  console.log(`Clone exit code: ${clone.exitCode}`);
-
   if (clone.exitCode !== 0) {
     console.error(`Clone failed: ${await clone.stderr()}`);
-  } else {
-    console.log(`Cloned ${REPO_URL} into repo`);
+    await sandbox.stop();
+    return;
   }
+
+  const ls = await sandbox.runCommand('ls', ['-la', 'repo']);
+  console.log('--- repo contents ---');
+  console.log(await ls.stdout());
+
+  let readmePreview = '(no README found)';
+  const readme = await sandbox.readFileToBuffer({ path: 'repo/README.md' });
+  if (readme) {
+    readmePreview = readme.toString('utf8').slice(0, 300);
+  } else {
+    console.warn('Warning: repo/README.md not found in the cloned repo.');
+  }
+
+  console.log('--- README preview ---');
+  console.log(readmePreview);
 
   await sandbox.stop();
 }
