@@ -15,6 +15,7 @@ export type LifecycleResult = {
   cloneExitCode: number;
   files: SourceFile[];
   testResult: TestResult;
+  usedSnapshot: boolean;
 };
 
 const INTERESTING_PATHS = [
@@ -24,12 +25,31 @@ const INTERESTING_PATHS = [
   'repo/lib/auth.ts'
 ];
 
-export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleResult> {
-  const sandbox = await Sandbox.create({
+const SNAPSHOT_ID = process.env.SANDBOX_SNAPSHOT_ID;
+
+// Restores from a snapshot when SANDBOX_SNAPSHOT_ID is set. Restore errors are not caught here,
+// so an expired or inaccessible snapshot shows as a real error, not as a silent fallback.
+async function createSandbox(): Promise<{ sandbox: Sandbox; usedSnapshot: boolean }> {
+  const base = {
     name: `repo-review-${Date.now()}`,
     persistent: false,
     timeout: 10 * 60 * 1000
+  };
+
+  if (!SNAPSHOT_ID) {
+    console.warn('SANDBOX_SNAPSHOT_ID is not set; using a default Sandbox.');
+    return { sandbox: await Sandbox.create(base), usedSnapshot: false };
+  }
+
+  const sandbox = await Sandbox.create({
+    ...base,
+    source: { type: 'snapshot', snapshotId: SNAPSHOT_ID }
   });
+  return { sandbox, usedSnapshot: true };
+}
+
+export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleResult> {
+  const { sandbox, usedSnapshot } = await createSandbox();
 
   try {
     const clone = await sandbox.runCommand('git', ['clone', '--depth', '1', repoUrl, 'repo']);
@@ -64,7 +84,8 @@ export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleRes
       sandboxName: sandbox.name,
       cloneExitCode: clone.exitCode,
       files,
-      testResult
+      testResult,
+      usedSnapshot
     };
   } finally {
     await sandbox.stop();
