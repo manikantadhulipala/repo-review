@@ -88,7 +88,9 @@ program
       const combined = {
         overallRisk: testFindings.length > 0 || testResult.exitCode !== 0 ? 'high' : aiReview.overallRisk,
         aiFindings: aiReview.findings,
-        testFindings
+        testFindings,
+        // safe() returns the fallback object itself on failure, so identity tells us the AI didn't run.
+        aiSkipped: aiReview === lowRiskFallback
       };
 
       console.log(`Tests (${testResult.packageManager}): exit code ${testResult.exitCode}`);
