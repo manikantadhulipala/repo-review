@@ -5,6 +5,8 @@ export type CombinedReview = {
   overallRisk: 'low' | 'medium' | 'high';
   aiFindings: Finding[];
   testFindings: TestFinding[];
+  // True when the AI review did not run (it failed, or no files were collected).
+  aiSkipped?: boolean;
 };
 
 const SEVERITY_RANK: Record<Finding['severity'], number> = {
@@ -40,7 +42,11 @@ export function printReview(review: CombinedReview): void {
   console.log('');
 
   if (total === 0) {
-    console.log('No findings. The repo is clean by both AI and test signals.');
+    console.log(
+      review.aiSkipped
+        ? 'No test failures. The AI review did not run, so only the tests were checked.'
+        : 'No findings. The repo is clean by both AI and test signals.'
+    );
     console.log('');
     return;
   }
