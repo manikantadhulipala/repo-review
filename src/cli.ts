@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { runSandboxLifecycle } from './sandbox-lifecycle';
 import { analyzeRepository } from './analyze';
+import { parseTestFailures } from './test-runner';
 
 function isValidGitHubRepoUrl(input: string): boolean {
   return /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(input);
@@ -30,17 +31,33 @@ program
       const lifecycle = await runSandboxLifecycle(repoUrl);
       console.log(`Sandbox: ${lifecycle.sandboxName}`);
 
-      if (lifecycle.files.length === 0) {
-        console.log('No source files matched the review list. Nothing to analyze.');
-        return;
-      }
       console.log(`Collected ${lifecycle.files.length} file(s) for analysis.`);
 
-      const review = await analyzeRepository(lifecycle.files);
-      console.log(`Overall risk: ${review.overallRisk}`);
-      console.log(`Findings: ${review.findings.length}`);
-      for (const finding of review.findings) {
-        console.log(`  [${finding.severity}] ${finding.summary} (${finding.file})`);
+      const aiReview =
+        lifecycle.files.length > 0
+          ? await analyzeRepository(lifecycle.files)
+          : { overallRisk: 'low' as const, findings: [] };
+      const { testResult } = lifecycle;
+      const testFindings = parseTestFailures(`${testResult.stdout}\n${testResult.stderr}`);
+
+      // A failing test run (non-zero exit or a parsed failure) escalates the overall risk,
+      // so a green AI review cannot hide a failing build.
+      const combined = {
+        overallRisk: testFindings.length > 0 || testResult.exitCode !== 0 ? 'high' : aiReview.overallRisk,
+        aiFindings: aiReview.findings,
+        testFindings
+      };
+
+      console.log(`Tests (${testResult.packageManager}): exit code ${testResult.exitCode}`);
+      console.log('');
+      console.log(`Overall risk: ${combined.overallRisk}`);
+      console.log(`AI findings: ${combined.aiFindings.length}`);
+      for (const f of combined.aiFindings) {
+        console.log(`  [${f.severity}] ${f.summary} (${f.file})`);
+      }
+      console.log(`Test findings: ${combined.testFindings.length}`);
+      for (const f of combined.testFindings) {
+        console.log(`  [${f.severity}] ${f.details}`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
