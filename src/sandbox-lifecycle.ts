@@ -1,4 +1,5 @@
 import { Sandbox } from '@vercel/sandbox';
+import { detectPackageManager } from './test-runner';
 
 export type SourceFile = { path: string; content: string };
 
@@ -6,6 +7,7 @@ export type TestResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
+  packageManager: 'pnpm' | 'npm' | 'yarn';
 };
 
 export type LifecycleResult = {
@@ -43,17 +45,19 @@ export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleRes
       }
     }
 
-    const install = await sandbox.runCommand({ cmd: 'pnpm', args: ['install'], cwd: 'repo' });
+    const pm = await detectPackageManager(sandbox);
+    const install = await sandbox.runCommand(pm.install);
     if (install.exitCode !== 0) {
       throw new Error(`Install failed: ${await install.stderr()}`);
     }
 
     // A failing test run is a finding, not a crash, so exit codes are not thrown on here.
-    const test = await sandbox.runCommand({ cmd: 'pnpm', args: ['test'], cwd: 'repo' });
+    const test = await sandbox.runCommand(pm.test);
     const testResult: TestResult = {
       exitCode: test.exitCode,
       stdout: await test.stdout(),
-      stderr: await test.stderr()
+      stderr: await test.stderr(),
+      packageManager: pm.name
     };
 
     return {
