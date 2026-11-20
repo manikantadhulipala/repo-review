@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { runSandboxLifecycle } from './sandbox-lifecycle';
 import { analyzeRepository } from './analyze';
 import { parseTestFailures } from './test-runner';
+import { printReview, type CombinedReview } from './reporter';
 
 // Logs how long fn took, even when it throws, so a failing stage still shows where the time went.
 async function time<T>(label: string, fn: () => Promise<T>): Promise<T> {
@@ -80,16 +81,7 @@ program
       };
 
       console.log(`Tests (${testResult.packageManager}): exit code ${testResult.exitCode}`);
-      console.log('');
-      console.log(`Overall risk: ${combined.overallRisk}`);
-      console.log(`AI findings: ${combined.aiFindings.length}`);
-      for (const f of combined.aiFindings) {
-        console.log(`  [${f.severity}] ${f.summary} (${f.file})`);
-      }
-      console.log(`Test findings: ${combined.testFindings.length}`);
-      for (const f of combined.testFindings) {
-        console.log(`  [${f.severity}] ${f.details}`);
-      }
+      printReview(combined as CombinedReview);
       printTotal();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
