@@ -49,18 +49,3 @@ If you find no issues, return an empty findings array.`,
 
   return result.output;
 }
-
-async function main() {
-  const review = await analyzeRepository([
-    {
-      path: 'src/auth.ts',
-      content: `export function login(user: string, password: string) {
-  if (password === 'admin') return true;
-  return false;
-}`
-    }
-  ]);
-  console.log(JSON.stringify(review, null, 2));
-}
-
-main();

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { runSandboxLifecycle } from './sandbox-lifecycle';
+import { analyzeRepository } from './analyze';
 
 function isValidGitHubRepoUrl(input: string): boolean {
   return /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(input);
@@ -26,15 +27,24 @@ program
     console.log(`Reviewing ${repoUrl}...`);
 
     try {
-      const result = await runSandboxLifecycle(repoUrl);
-      console.log(`Sandbox: ${result.sandboxName}`);
-      console.log(`Clone exit code: ${result.cloneExitCode}`);
-      console.log(`Files:\n${result.files}`);
-      console.log(`README preview:\n${result.readmePreview}`);
+      const lifecycle = await runSandboxLifecycle(repoUrl);
+      console.log(`Sandbox: ${lifecycle.sandboxName}`);
+
+      if (lifecycle.files.length === 0) {
+        console.log('No source files matched the review list. Nothing to analyze.');
+        return;
+      }
+      console.log(`Collected ${lifecycle.files.length} file(s) for analysis.`);
+
+      const review = await analyzeRepository(lifecycle.files);
+      console.log(`Overall risk: ${review.overallRisk}`);
+      console.log(`Findings: ${review.findings.length}`);
+      for (const finding of review.findings) {
+        console.log(`  [${finding.severity}] ${finding.summary} (${finding.file})`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('could not read Username')) {
-        // GitHub asks for credentials when a repo is missing or private.
         console.error('Review failed: repository not found, or it is private (public repos only).');
       } else {
         console.error('Review failed:', message);
