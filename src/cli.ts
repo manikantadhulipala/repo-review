@@ -72,6 +72,17 @@ program
         []
       );
 
+      // Some runners (plain `node` + assert, mocha) fail without the markers the parser
+      // knows. Record the non-zero exit as a finding so the report never says "clean".
+      if (testResult.exitCode !== 0 && testFindings.length === 0) {
+        testFindings.push({
+          severity: 'high',
+          category: 'test-failure',
+          summary: 'Automated test failure',
+          details: `Test command exited with code ${testResult.exitCode}; no individual failures were recognized in its output.`
+        });
+      }
+
       // A failing test run (non-zero exit or a parsed failure) escalates the overall risk,
       // so a green AI review cannot hide a failing build.
       const combined = {
