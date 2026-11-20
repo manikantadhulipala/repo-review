@@ -2,10 +2,17 @@ import { Sandbox } from '@vercel/sandbox';
 
 export type SourceFile = { path: string; content: string };
 
+export type TestResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+};
+
 export type LifecycleResult = {
   sandboxName: string;
   cloneExitCode: number;
   files: SourceFile[];
+  testResult: TestResult;
 };
 
 const INTERESTING_PATHS = [
@@ -36,10 +43,24 @@ export async function runSandboxLifecycle(repoUrl: string): Promise<LifecycleRes
       }
     }
 
+    const install = await sandbox.runCommand({ cmd: 'pnpm', args: ['install'], cwd: 'repo' });
+    if (install.exitCode !== 0) {
+      throw new Error(`Install failed: ${await install.stderr()}`);
+    }
+
+    // A failing test run is a finding, not a crash, so exit codes are not thrown on here.
+    const test = await sandbox.runCommand({ cmd: 'pnpm', args: ['test'], cwd: 'repo' });
+    const testResult: TestResult = {
+      exitCode: test.exitCode,
+      stdout: await test.stdout(),
+      stderr: await test.stderr()
+    };
+
     return {
       sandboxName: sandbox.name,
       cloneExitCode: clone.exitCode,
-      files
+      files,
+      testResult
     };
   } finally {
     await sandbox.stop();
