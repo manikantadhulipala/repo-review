@@ -3,6 +3,16 @@ import { runSandboxLifecycle } from './sandbox-lifecycle';
 import { analyzeRepository } from './analyze';
 import { parseTestFailures } from './test-runner';
 
+// Logs how long fn took, even when it throws, so a failing stage still shows where the time went.
+async function time<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  try {
+    return await fn();
+  } finally {
+    console.log(`⏱  ${label}: ${Date.now() - start}ms`);
+  }
+}
+
 function isValidGitHubRepoUrl(input: string): boolean {
   return /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(input);
 }
@@ -18,6 +28,9 @@ program
   .command('review <repoUrl>')
   .description('Run a Sandbox review against a GitHub repository URL')
   .action(async (repoUrl: string) => {
+    const totalStart = Date.now();
+    const printTotal = () => console.log(`Total: ${Date.now() - totalStart}ms`);
+
     if (!isValidGitHubRepoUrl(repoUrl)) {
       console.error(`Invalid GitHub repository URL: ${repoUrl}`);
       console.error('Expected format: https://github.com/<owner>/<repo>');
@@ -28,15 +41,15 @@ program
     console.log(`Reviewing ${repoUrl}...`);
 
     try {
-      const lifecycle = await runSandboxLifecycle(repoUrl);
+      const lifecycle = await time('sandbox lifecycle', () => runSandboxLifecycle(repoUrl));
       console.log(`Sandbox: ${lifecycle.sandboxName}`);
-
       console.log(`Collected ${lifecycle.files.length} file(s) for analysis.`);
 
       const aiReview =
         lifecycle.files.length > 0
-          ? await analyzeRepository(lifecycle.files)
+          ? await time('ai analysis', () => analyzeRepository(lifecycle.files))
           : { overallRisk: 'low' as const, findings: [] };
+
       const { testResult } = lifecycle;
       const testFindings = parseTestFailures(`${testResult.stdout}\n${testResult.stderr}`);
 
@@ -59,6 +72,7 @@ program
       for (const f of combined.testFindings) {
         console.log(`  [${f.severity}] ${f.details}`);
       }
+      printTotal();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes('could not read Username')) {
@@ -66,6 +80,7 @@ program
       } else {
         console.error('Review failed:', message);
       }
+      printTotal();
       process.exitCode = 1;
     }
   });
