@@ -13,6 +13,17 @@ async function time<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Runs fn, and on error logs a warning and returns the fallback so the rest of the run can continue.
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`⚠  ${label} failed: ${message}`);
+    return fallback;
+  }
+}
+
 function isValidGitHubRepoUrl(input: string): boolean {
   return /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(input);
 }
@@ -45,13 +56,20 @@ program
       console.log(`Sandbox: ${lifecycle.sandboxName}`);
       console.log(`Collected ${lifecycle.files.length} file(s) for analysis.`);
 
+      const lowRiskFallback = { overallRisk: 'low' as const, findings: [] };
       const aiReview =
         lifecycle.files.length > 0
-          ? await time('ai analysis', () => analyzeRepository(lifecycle.files))
-          : { overallRisk: 'low' as const, findings: [] };
+          ? await time('ai analysis', () =>
+              safe('ai analysis', () => analyzeRepository(lifecycle.files), lowRiskFallback)
+            )
+          : lowRiskFallback;
 
       const { testResult } = lifecycle;
-      const testFindings = parseTestFailures(`${testResult.stdout}\n${testResult.stderr}`);
+      const testFindings = await safe(
+        'test parsing',
+        async () => parseTestFailures(`${testResult.stdout}\n${testResult.stderr}`),
+        []
+      );
 
       // A failing test run (non-zero exit or a parsed failure) escalates the overall risk,
       // so a green AI review cannot hide a failing build.
